@@ -91,6 +91,33 @@ impl<T: Read> Reader<T> {
 		Reader::new(try!(Properties::from(stream.by_ref())), stream)
 	}
 
+	/// Returns the model properties.
+	pub fn properties(&self) -> &Properties {
+		&self.properties
+	}
+
+	/// Returns the size of the internal cache.
+	pub fn cached(&self) -> usize {
+		if let Some(buffer) = self.buffer.as_ref() {
+			buffer.len() - self.offset
+		}
+		else {
+			0
+		}
+	}
+
+	/// Gets how many bytes have been decoded so far.
+	pub fn decoded(&self) -> usize {
+		self.decoded as usize
+	}
+
+	/// Unwraps this `Reader`, returning the underlying reader.
+	///
+	/// Note that any leftover data in the internal buffer is lost.
+	pub fn into_inner(self) -> T {
+		self.stream.into_inner()
+	}
+
 	fn distance(&mut self, length: usize) -> Result<usize, Error> {
 		let state = if length > LENGTH_TO_POSITION_STATES - 1 {
 			LENGTH_TO_POSITION_STATES - 1
