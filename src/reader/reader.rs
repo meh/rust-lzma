@@ -8,8 +8,10 @@ use super::{Range, Window, Length, Probabilities, BitTree, State, Cache};
 #[derive(Debug)]
 pub struct Reader<T: Read> {
 	stream:  BufReader<T>,
-	cache:   Option<Vec<u8>>,
 	decoded: u64,
+
+	buffer: Option<Vec<u8>>,
+	offset: usize,
 
 	properties: Properties,
 
@@ -47,8 +49,10 @@ impl<T: Read> Reader<T> {
 
 		Ok(Reader {
 			stream:  stream,
-			cache:   None,
 			decoded: 0,
+
+			buffer: None,
+			offset: 0,
 
 			properties: properties,
 
@@ -108,7 +112,7 @@ impl<T: Read> Reader<T> {
 		Ok(distance as usize)
 	}
 
-	fn literal(&mut self, cache: &mut Cache, state: usize, rep0: u32) -> Result<(), Error> {
+	fn literal(&mut self, writer: &mut Cache, state: usize, rep0: u32) -> Result<(), Error> {
 		let prev = if !self.window.is_empty() {
 			self.window[1] as u32
 		}
@@ -150,10 +154,10 @@ impl<T: Read> Reader<T> {
 			byte  |= if bit { 1 } else { 0 };
 		}
 
-		self.window.push(cache, byte as u8)
+		self.window.push(writer, byte as u8)
 	}
 
-	fn decode(&mut self, cache: &mut Cache) -> Result<usize, Error> {
+	fn decode(&mut self, writer: &mut Cache) -> Result<usize, Error> {
 		if let Some(size) = self.properties.uncompressed {
 			if self.decoded == size {
 				return Ok(0);
@@ -177,7 +181,7 @@ impl<T: Read> Reader<T> {
 
 			let rep = self.rep[0];
 			let state = self.state;
-			try!(self.literal(cache, state as usize, rep));
+			try!(self.literal(writer, state as usize, rep));
 			self.state = State::Literal(self.state).update();
 			self.decoded += 1;
 
@@ -202,7 +206,7 @@ impl<T: Read> Reader<T> {
 				if !try!(self.range.probabilistic(self.stream.by_ref(), &mut self.is_rep0_long[((self.state << POSITION_BITS_MAX) + pos) as usize])) {
 					self.state = State::ShortRepetition(self.state).update();
 					let byte = self.window[self.rep[0] + 1];
-					try!(self.window.push(cache, byte));
+					try!(self.window.push(writer, byte));
 					self.decoded += 1;
 
 					return Ok(1);
@@ -276,7 +280,7 @@ impl<T: Read> Reader<T> {
 			}
 		}
 
-		try!(self.window.copy(cache, self.rep[0] + 1, length));
+		try!(self.window.copy(writer, self.rep[0] + 1, length));
 		self.decoded += length as u64;
 
 		Ok(length)
@@ -292,19 +296,15 @@ impl<T: Read> Read for Reader<T> {
 		let     length = buf.len();
 		let mut target = Cursor::new(buf);
 
-		if let Some(mut cache) = self.cache.take() {
-			let written = try!(target.write(&cache));
+		if let Some(buffer) = self.buffer.take() {
+			let written  = try!(target.write(&buffer[self.offset..]));
+			self.offset += written;
 
-			// TODO: use Drain when it's stabilized
-			for _ in 0 .. written {
-				cache.remove(0);
-			}
-
-			if cache.len() == 0 {
-				self.cache = None;
+			if self.offset == buffer.len() {
+				self.buffer = None;
 			}
 			else {
-				self.cache = Some(cache);
+				self.buffer = Some(buffer);
 			}
 
 			return Ok(written);
@@ -324,7 +324,8 @@ impl<T: Read> Read for Reader<T> {
 
 			Ok(written) => {
 				if let Some(cache) = cache.into_inner() {
-					self.cache = Some(cache);
+					self.buffer = Some(cache);
+					self.offset = 0;
 
 					Ok(length)
 				}
