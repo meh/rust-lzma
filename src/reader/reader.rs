@@ -244,6 +244,12 @@ impl<T: Read> Reader<T> {
 
 			if self.rep[0] == 0xffffffff {
 				if self.range.is_finished() {
+					if let Some(size) = self.properties.uncompressed {
+						if self.decoded != size {
+							return Err(Error::NeedMoreData);
+						}
+					}
+
 					return Ok(0);
 				}
 				else {
