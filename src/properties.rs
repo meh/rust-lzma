@@ -6,7 +6,7 @@ use {Error};
 use consts::MINIMUM_DICTIONARY_SIZE;
 
 /// LZMA model properties.
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct Properties {
 	/// Literal context bits.
 	pub lc: u8,
