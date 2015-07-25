@@ -36,6 +36,10 @@ impl Range {
 		}
 	}
 
+	pub fn is_finished(&self) -> bool {
+		self.code == 0
+	}
+
 	fn normalize<T: Read>(&mut self, mut stream: T) -> Result<(), Error> {
 		if self.range < TOP_VALUE {
 			self.range <<= 8;
@@ -91,9 +95,5 @@ impl Range {
 		*prob = v;
 
 		Ok(bit)
-	}
-
-	pub fn is_finished(&self) -> bool {
-		self.code == 0
 	}
 }
