@@ -1,4 +1,4 @@
-use std::io::{self, Write, Read, BufReader, Cursor};
+use std::io::{self, Write, Read, Cursor};
 
 use {Error, Properties};
 use consts::{LENGTH_TO_POSITION_STATES, ALIGN_BITS, END_POSITION_MODEL_INDEX};
@@ -8,7 +8,7 @@ use super::{Range, Window, Length, Probabilities, BitTree, State, Cache};
 /// A LZMA stream reader.
 #[derive(Debug)]
 pub struct Reader<T: Read> {
-	stream:  BufReader<T>,
+	stream:  T,
 	decoded: u64,
 
 	properties: Properties,
@@ -44,9 +44,7 @@ pub struct Reader<T: Read> {
 impl<T: Read> Reader<T> {
 	/// Creates a LZMA reader with the given model properties and the given
 	/// stream.
-	pub fn new(properties: Properties, stream: T) -> Result<Reader<T>, Error> {
-		let mut stream = BufReader::new(stream);
-
+	pub fn new(properties: Properties, mut stream: T) -> Result<Reader<T>, Error> {
 		let range  = try!(Range::from(stream.by_ref()));
 		let window = Window::new(properties.dictionary);
 
@@ -115,7 +113,7 @@ impl<T: Read> Reader<T> {
 	///
 	/// Note that any leftover data in the internal buffer is lost.
 	pub fn into_inner(self) -> T {
-		self.stream.into_inner()
+		self.stream
 	}
 
 	fn distance(&mut self, length: usize) -> Result<usize, Error> {

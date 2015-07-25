@@ -22,15 +22,15 @@ pub use self::cache::Cache;
 mod reader;
 pub use self::reader::Reader;
 
-use std::io::Read;
+use std::io::{Read, BufReader};
 use std::fs::File;
 use std::path::Path;
 
 use Error;
 
 /// Open a file as a LZMA stream.
-pub fn open<T: AsRef<Path>>(path: T) -> Result<Reader<File>, Error> {
-	read(try!(File::open(path)))
+pub fn open<T: AsRef<Path>>(path: T) -> Result<Reader<BufReader<File>>, Error> {
+	read(BufReader::new(try!(File::open(path))))
 }
 
 /// Create a LZMA stream from another stream.
