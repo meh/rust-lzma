@@ -45,7 +45,7 @@ impl Window {
 	}
 
 	pub fn is_empty(&self) -> bool {
-		self.position == 0 && !self.full
+		self.position == 0 && !self.is_full()
 	}
 
 	pub fn push<T: Write>(&mut self, mut stream: T, byte: u8) -> Result<(), Error> {
@@ -56,7 +56,7 @@ impl Window {
 		self.position += 1;
 		self.total    += 1;
 
-		if self.position == self.size {
+		if self.position() == self.size() {
 			self.position = 0;
 			self.full     = true;
 		}
