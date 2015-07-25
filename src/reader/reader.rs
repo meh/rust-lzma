@@ -10,10 +10,12 @@ pub struct Reader<T: Read> {
 	stream:  BufReader<T>,
 	decoded: u64,
 
+	properties: Properties,
+
+	// using an optional buffer and offset for leftovers so we avoid useless
+	// allocations and reallocations
 	buffer: Option<Vec<u8>>,
 	offset: usize,
-
-	properties: Properties,
 
 	range:  Range,
 	window: Window,
@@ -51,10 +53,10 @@ impl<T: Read> Reader<T> {
 			stream:  stream,
 			decoded: 0,
 
+			properties: properties,
+
 			buffer: None,
 			offset: 0,
-
-			properties: properties,
 
 			range:  range,
 			window: window,
@@ -68,8 +70,8 @@ impl<T: Read> Reader<T> {
 			slot:  vec![BitTree::new(6); LENGTH_TO_POSITION_STATES],
 			align: BitTree::new(ALIGN_BITS),
 
-			state:  0,
-			rep:    [0; 4],
+			state: 0,
+			rep:   [0; 4],
 
 			is_match:     Probabilities::new(STATES << POSITION_BITS_MAX),
 			is_rep:       Probabilities::new(STATES),
@@ -102,10 +104,11 @@ impl<T: Read> Reader<T> {
 		let mut distance = (2 | (slot & 1)) << direct;
 
 		if slot < END_POSITION_MODEL_INDEX {
-			distance += try!(super::probabilities::reverse(self.stream.by_ref(), &mut self.position[distance - slot ..], direct, &mut self.range));
+			distance += try!(super::probabilities::reverse(self.stream.by_ref(),
+				&mut self.position[distance - slot ..], direct, &mut self.range));
 		}
 		else {
-			distance += (try!(self.range.direct(self.stream.by_ref(), direct - ALIGN_BITS))) << ALIGN_BITS;
+			distance += try!(self.range.direct(self.stream.by_ref(), direct - ALIGN_BITS)) << ALIGN_BITS;
 			distance += try!(self.align.reverse(self.stream.by_ref(), &mut self.range));
 		}
 
@@ -136,7 +139,8 @@ impl<T: Read> Reader<T> {
 				let match_bit = (match_byte >> 7) & 1;
 				match_byte <<= 1;
 
-				let bit = try!(self.range.probabilistic(self.stream.by_ref(), &mut probs[(((1 + match_bit as u32) << 8) + byte) as usize]));
+				let bit = try!(self.range.probabilistic(self.stream.by_ref(),
+					&mut probs[(((1 + match_bit as u32) << 8) + byte) as usize]));
 
 				byte <<= 1;
 				byte  |= if bit { 1 } else { 0 };
@@ -179,10 +183,11 @@ impl<T: Read> Reader<T> {
 				}
 			}
 
-			let rep = self.rep[0];
+			let rep   = self.rep[0];
 			let state = self.state;
 			try!(self.literal(writer, state as usize, rep));
-			self.state = State::Literal(self.state).update();
+
+			self.state    = State::Literal(self.state).update();
 			self.decoded += 1;
 
 			return Ok(1);
@@ -204,9 +209,10 @@ impl<T: Read> Reader<T> {
 
 			if !try!(self.range.probabilistic(self.stream.by_ref(), &mut self.is_rep_g0[self.state as usize])) {
 				if !try!(self.range.probabilistic(self.stream.by_ref(), &mut self.is_rep0_long[((self.state << POSITION_BITS_MAX) + pos) as usize])) {
-					self.state = State::ShortRepetition(self.state).update();
 					let byte = self.window[self.rep[0] + 1];
 					try!(self.window.push(writer, byte));
+
+					self.state    = State::ShortRepetition(self.state).update();
 					self.decoded += 1;
 
 					return Ok(1);
@@ -223,7 +229,7 @@ impl<T: Read> Reader<T> {
 						distance = self.rep[2];
 					}
 					else {
-						distance = self.rep[3];
+						distance    = self.rep[3];
 						self.rep[3] = self.rep[2];
 					}
 
@@ -235,25 +241,29 @@ impl<T: Read> Reader<T> {
 			}
 
 			length = try!(self.repeat.decode(self.stream.by_ref(), &mut self.range, pos as usize));
-			self.state  = State::Repetition(self.state).update();
+
+			self.state = State::Repetition(self.state).update();
 		}
 		else {
+			length = try!(self.length.decode(self.stream.by_ref(), &mut self.range, pos as usize));
+
 			self.rep[3] = self.rep[2];
 			self.rep[2] = self.rep[1];
 			self.rep[1] = self.rep[0];
-
-			length = try!(self.length.decode(self.stream.by_ref(), &mut self.range, pos as usize));
-			self.state  = State::Match(self.state).update();
 			self.rep[0] = try!(self.distance(length)) as u32;
 
+			// EOS marker found
 			if self.rep[0] == 0xffffffff {
+				// if the range finished correctly
 				if self.range.is_finished() {
+					// return error if EOS when the uncompressed size is defined
 					if let Some(size) = self.properties.uncompressed {
 						if self.decoded != size {
 							return Err(Error::NeedMoreData);
 						}
 					}
 
+					// return EOF
 					return Ok(0);
 				}
 				else {
@@ -261,15 +271,11 @@ impl<T: Read> Reader<T> {
 				}
 			}
 
-			if let Some(size) = self.properties.uncompressed {
-				if self.decoded == size {
-					return Err(Error::HasMoreData);
-				}
-			}
-
 			if self.rep[0] >= self.properties.dictionary || !self.window.check(self.rep[0]) {
 				return Err(Error::Corrupted);
 			}
+
+			self.state = State::Match(self.state).update();
 		}
 
 		length += MATCH_MINIMUM_LENGTH;
@@ -296,6 +302,7 @@ impl<T: Read> Read for Reader<T> {
 		let     length = buf.len();
 		let mut target = Cursor::new(buf);
 
+		// we have some leftovers from the previous decode, try to flush those
 		if let Some(buffer) = self.buffer.take() {
 			let written  = try!(target.write(&buffer[self.offset..]));
 			self.offset += written;
