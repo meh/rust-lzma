@@ -3,12 +3,12 @@ use std::io::{self, Write, Read, BufReader, Cursor};
 use {Error, Properties};
 use consts::{LENGTH_TO_POSITION_STATES, ALIGN_BITS, END_POSITION_MODEL_INDEX};
 use consts::{FULL_DISTANCES, STATES, POSITION_BITS_MAX, MATCH_MINIMUM_LENGTH};
-use super::{Range, Window, Length, Probabilities, BitTree, State};
+use super::{Range, Window, Length, Probabilities, BitTree, State, Cache};
 
 #[derive(Debug)]
 pub struct Reader<T: Read> {
 	stream:  BufReader<T>,
-	buffer:  Vec<u8>,
+	cache:   Option<Vec<u8>>,
 	decoded: u64,
 
 	properties: Properties,
@@ -47,7 +47,7 @@ impl<T: Read> Reader<T> {
 
 		Ok(Reader {
 			stream:  stream,
-			buffer:  Vec::new(),
+			cache:   None,
 			decoded: 0,
 
 			properties: properties,
@@ -80,7 +80,35 @@ impl<T: Read> Reader<T> {
 		Reader::new(try!(Properties::from(stream.by_ref())), stream)
 	}
 
-	fn literal(&mut self, state: usize, rep0: u32) -> Result<(), Error> {
+	fn distance(&mut self, length: usize) -> Result<usize, Error> {
+		let state = if length > LENGTH_TO_POSITION_STATES - 1 {
+			LENGTH_TO_POSITION_STATES - 1
+		}
+		else {
+			length
+		};
+
+		let slot = try!(self.slot[state].decode(self.stream.by_ref(), &mut self.range));
+
+		if slot < 4 {
+			return Ok(slot);
+		}
+
+		let     direct   = (slot >> 1) - 1;
+		let mut distance = (2 | (slot & 1)) << direct;
+
+		if slot < END_POSITION_MODEL_INDEX {
+			distance += try!(super::probabilities::reverse(self.stream.by_ref(), &mut self.position[distance - slot ..], direct, &mut self.range));
+		}
+		else {
+			distance += (try!(self.range.direct(self.stream.by_ref(), direct - ALIGN_BITS))) << ALIGN_BITS;
+			distance += try!(self.align.reverse(self.stream.by_ref(), &mut self.range));
+		}
+
+		Ok(distance as usize)
+	}
+
+	fn literal(&mut self, cache: &mut Cache, state: usize, rep0: u32) -> Result<(), Error> {
 		let prev = if !self.window.is_empty() {
 			self.window[1] as u32
 		}
@@ -122,38 +150,10 @@ impl<T: Read> Reader<T> {
 			byte  |= if bit { 1 } else { 0 };
 		}
 
-		self.window.push(&mut self.buffer, byte as u8)
+		self.window.push(cache, byte as u8)
 	}
 
-	fn distance(&mut self, length: usize) -> Result<usize, Error> {
-		let state = if length > LENGTH_TO_POSITION_STATES - 1 {
-			LENGTH_TO_POSITION_STATES - 1
-		}
-		else {
-			length
-		};
-
-		let slot = try!(self.slot[state].decode(self.stream.by_ref(), &mut self.range));
-
-		if slot < 4 {
-			return Ok(slot);
-		}
-
-		let     direct   = (slot >> 1) - 1;
-		let mut distance = (2 | (slot & 1)) << direct;
-
-		if slot < END_POSITION_MODEL_INDEX {
-			distance += try!(super::probabilities::reverse(self.stream.by_ref(), &mut self.position[distance - slot ..], direct, &mut self.range));
-		}
-		else {
-			distance += (try!(self.range.direct(self.stream.by_ref(), direct - ALIGN_BITS))) << ALIGN_BITS;
-			distance += try!(self.align.reverse(self.stream.by_ref(), &mut self.range));
-		}
-
-		Ok(distance as usize)
-	}
-
-	fn decode(&mut self) -> Result<usize, Error> {
+	fn decode(&mut self, cache: &mut Cache) -> Result<usize, Error> {
 		if let Some(size) = self.properties.uncompressed {
 			if self.decoded == size {
 				return Ok(0);
@@ -177,7 +177,7 @@ impl<T: Read> Reader<T> {
 
 			let rep = self.rep[0];
 			let state = self.state;
-			try!(self.literal(state as usize, rep));
+			try!(self.literal(cache, state as usize, rep));
 			self.state = State::Literal(self.state).update();
 			self.decoded += 1;
 
@@ -202,7 +202,7 @@ impl<T: Read> Reader<T> {
 				if !try!(self.range.probabilistic(self.stream.by_ref(), &mut self.is_rep0_long[((self.state << POSITION_BITS_MAX) + pos) as usize])) {
 					self.state = State::ShortRepetition(self.state).update();
 					let byte = self.window[self.rep[0] + 1];
-					try!(self.window.push(&mut self.buffer, byte));
+					try!(self.window.push(cache, byte));
 					self.decoded += 1;
 
 					return Ok(1);
@@ -270,7 +270,7 @@ impl<T: Read> Reader<T> {
 			}
 		}
 
-		try!(self.window.copy(&mut self.buffer, self.rep[0] + 1, length));
+		try!(self.window.copy(cache, self.rep[0] + 1, length));
 		self.decoded += length as u64;
 
 		Ok(length)
@@ -283,40 +283,44 @@ impl<T: Read> Read for Reader<T> {
 			return Ok(0);
 		}
 
+		let     length = buf.len();
 		let mut target = Cursor::new(buf);
 
-		if self.buffer.len() > 0 {
-			let written = try!(target.write(&self.buffer));
+		if let Some(cache) = self.cache.as_mut() {
+			if cache.len() > 0 {
+				let written = try!(target.write(&cache));
 
-			// TODO: use Drain when it's stabilized
-			for _ in 0 .. written {
-				self.buffer.remove(0);
+				// TODO: use Drain when it's stabilized
+				for _ in 0 .. written {
+					cache.remove(0);
+				}
+
+				return Ok(written);
 			}
-
-			return Ok(written);
 		}
 
-		match self.decode() {
+		let mut cache = Cache::new(target);
+
+		match self.decode(&mut cache) {
 			Err(Error::IO(err)) =>
-				return Err(err),
+				Err(err),
 
 			Err(err) =>
-				return Err(io::Error::new(io::ErrorKind::Other, err)),
+				Err(io::Error::new(io::ErrorKind::Other, err)),
 
 			Ok(0) =>
-				return Ok(0),
+				Ok(0),
 
-			Ok(_) =>
-				()
+			Ok(written) => {
+				if let Some(cache) = cache.into_inner() {
+					self.cache = Some(cache);
+
+					Ok(length)
+				}
+				else {
+					Ok(written)
+				}
+			}
 		}
-
-		let written = try!(target.write(&self.buffer));
-
-		// TODO: use Drain when it's stabilized
-		for _ in 0 .. written {
-			self.buffer.remove(0);
-		}
-
-		Ok(written)
 	}
 }

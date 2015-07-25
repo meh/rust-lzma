@@ -16,6 +16,9 @@ pub use self::length::Length;
 mod state;
 pub use self::state::State;
 
+mod cache;
+pub use self::cache::Cache;
+
 mod reader;
 pub use self::reader::Reader;
 
