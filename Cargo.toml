@@ -1,0 +1,13 @@
+[package]
+name    = "lzma"
+version = "0.1.0"
+
+authors = ["meh. <meh@schizofreni.co>"]
+license = "WTFPL"
+
+description = "LZMA format handling."
+repository  = "https://github.com/meh/rust-lzma"
+keywords    = ["lzma", "compression", "decompression"]
+
+[dependencies]
+byteorder = "*"
