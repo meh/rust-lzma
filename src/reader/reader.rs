@@ -286,17 +286,22 @@ impl<T: Read> Read for Reader<T> {
 		let     length = buf.len();
 		let mut target = Cursor::new(buf);
 
-		if let Some(cache) = self.cache.as_mut() {
-			if cache.len() > 0 {
-				let written = try!(target.write(&cache));
+		if let Some(mut cache) = self.cache.take() {
+			let written = try!(target.write(&cache));
 
-				// TODO: use Drain when it's stabilized
-				for _ in 0 .. written {
-					cache.remove(0);
-				}
-
-				return Ok(written);
+			// TODO: use Drain when it's stabilized
+			for _ in 0 .. written {
+				cache.remove(0);
 			}
+
+			if cache.len() == 0 {
+				self.cache = None;
+			}
+			else {
+				self.cache = Some(cache);
+			}
+
+			return Ok(written);
 		}
 
 		let mut cache = Cache::new(target);

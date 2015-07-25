@@ -24,9 +24,11 @@ impl<'a> Write for Cache<'a> {
 		let mut written = try!(self.cursor.write(buf));
 
 		if written != buf.len() {
-			let mut buffer = Vec::with_capacity(buf.len() - written);
-			written += try!(buffer.write(&buf[written..]));
-			self.buffer = Some(buffer);
+			if self.buffer.is_none() {
+				self.buffer = Some(Vec::with_capacity(buf.len() - written));
+			}
+
+			written += try!(self.buffer.as_mut().unwrap().write(&buf[written..]));
 		}
 
 		Ok(written)
