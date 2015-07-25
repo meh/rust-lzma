@@ -21,7 +21,7 @@ impl Probabilities {
 }
 
 impl Deref for Probabilities {
-	type Target = Vec<u16>;
+	type Target = [u16];
 
 	fn deref(&self) -> &Self::Target {
 		&self.buffer
