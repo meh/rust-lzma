@@ -5,17 +5,27 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use {Error};
 use consts::MINIMUM_DICTIONARY_SIZE;
 
+/// LZMA model properties.
 #[derive(Debug)]
 pub struct Properties {
+	/// Literal context bits.
 	pub lc: u8,
+
+	/// Literal position bits.
 	pub lp: u8,
+
+	/// Position bits.
 	pub pb: u8,
 
-	pub dictionary:   u32,
+	/// Dictionary size.
+	pub dictionary: u32,
+
+	/// Uncompressed size if present.
 	pub uncompressed: Option<u64>,
 }
 
 impl Properties {
+	/// Read the model properties from a stream.
 	pub fn from<T: Read>(mut stream: T) -> Result<Properties, Error> {
 		let d = try!(stream.read_u8());
 

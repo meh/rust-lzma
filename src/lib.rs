@@ -1,4 +1,6 @@
-#![allow(dead_code)]
+//! LZMA handling library.
+
+#![warn(missing_docs)]
 
 extern crate byteorder;
 

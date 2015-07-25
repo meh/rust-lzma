@@ -5,6 +5,7 @@ use consts::{LENGTH_TO_POSITION_STATES, ALIGN_BITS, END_POSITION_MODEL_INDEX};
 use consts::{FULL_DISTANCES, STATES, POSITION_BITS_MAX, MATCH_MINIMUM_LENGTH};
 use super::{Range, Window, Length, Probabilities, BitTree, State, Cache};
 
+/// A LZMA stream reader.
 #[derive(Debug)]
 pub struct Reader<T: Read> {
 	stream:  BufReader<T>,
@@ -41,6 +42,8 @@ pub struct Reader<T: Read> {
 }
 
 impl<T: Read> Reader<T> {
+	/// Creates a LZMA reader with the given model properties and the given
+	/// stream.
 	pub fn new(properties: Properties, stream: T) -> Result<Reader<T>, Error> {
 		let mut stream = BufReader::new(stream);
 
@@ -82,6 +85,8 @@ impl<T: Read> Reader<T> {
 		})
 	}
 
+	/// Creates a LZMA stream from the given stream, reading the model
+	/// properties.
 	pub fn from(mut stream: T) -> Result<Reader<T>, Error> {
 		Reader::new(try!(Properties::from(stream.by_ref())), stream)
 	}

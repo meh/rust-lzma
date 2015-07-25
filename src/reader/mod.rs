@@ -28,10 +28,12 @@ use std::path::Path;
 
 use Error;
 
+/// Open a file as a LZMA stream.
 pub fn open<T: AsRef<Path>>(path: T) -> Result<Reader<File>, Error> {
 	read(try!(File::open(path)))
 }
 
+/// Create a LZMA stream from another stream.
 pub fn read<T: Read>(stream: T) -> Result<Reader<T>, Error> {
 	Reader::from(stream)
 }
