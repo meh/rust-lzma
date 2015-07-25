@@ -24,7 +24,7 @@ impl BitTree {
 	pub fn decode<T: Read>(&mut self, mut stream: T, range: &mut Range) -> Result<usize, Error> {
 		let mut m = 1usize;
 
-		for _ in 0 .. self.bits {
+		for _ in 0 .. self.bits() {
 			if try!(range.probabilistic(stream.by_ref(), &mut self.probabilities[m])) {
 				m <<= 1;
 				m  += 1;
@@ -34,7 +34,7 @@ impl BitTree {
 			}
 		}
 
-		Ok(m - (1 << self.bits))
+		Ok(m - (1 << self.bits()))
 	}
 
 	pub fn reverse<T: Read>(&mut self, stream: T, range: &mut Range) -> Result<usize, Error> {
