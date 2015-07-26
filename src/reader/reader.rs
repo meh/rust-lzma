@@ -1,6 +1,6 @@
 use std::io::{self, Write, Read, Cursor};
 
-use {Error, Properties};
+use {Error, Properties, properties};
 use consts::{LENGTH_TO_POSITION_STATES, ALIGN_BITS, END_POSITION_MODEL_INDEX};
 use consts::{FULL_DISTANCES, STATES, POSITION_BITS_MAX, MATCH_MINIMUM_LENGTH};
 use super::{Range, Window, Length, Probabilities, BitTree, State, Cache};
@@ -86,7 +86,7 @@ impl<T: Read> Reader<T> {
 	/// Creates a LZMA stream from the given stream, reading the model
 	/// properties.
 	pub fn from(mut stream: T) -> Result<Reader<T>, Error> {
-		Reader::new(try!(Properties::from(stream.by_ref())), stream)
+		Reader::new(try!(properties::read(stream.by_ref())), stream)
 	}
 
 	/// Returns the model properties.
