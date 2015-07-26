@@ -7,8 +7,8 @@ use super::{Range, Window, Length, Probabilities, BitTree, State, Cache};
 
 /// A LZMA stream reader.
 #[derive(Debug)]
-pub struct Reader<T: Read> {
-	stream:  T,
+pub struct Reader<R: Read> {
+	stream:  R,
 	decoded: u64,
 
 	properties: Properties,
@@ -41,10 +41,10 @@ pub struct Reader<T: Read> {
 	is_rep0_long: Probabilities,
 }
 
-impl<T: Read> Reader<T> {
+impl<R: Read> Reader<R> {
 	/// Creates a LZMA reader with the given model properties and the given
 	/// stream.
-	pub fn new(properties: Properties, mut stream: T) -> Result<Reader<T>, Error> {
+	pub fn new(properties: Properties, mut stream: R) -> Result<Reader<R>, Error> {
 		let range  = try!(Range::from(stream.by_ref()));
 		let window = Window::new(properties.dictionary);
 
@@ -85,7 +85,7 @@ impl<T: Read> Reader<T> {
 
 	/// Creates a LZMA stream from the given stream, reading the model
 	/// properties.
-	pub fn from(mut stream: T) -> Result<Reader<T>, Error> {
+	pub fn from(mut stream: R) -> Result<Reader<R>, Error> {
 		Reader::new(try!(properties::read(stream.by_ref())), stream)
 	}
 
@@ -112,7 +112,7 @@ impl<T: Read> Reader<T> {
 	/// Unwraps this `Reader`, returning the underlying reader.
 	///
 	/// Note that any leftover data in the internal buffer is lost.
-	pub fn into_inner(self) -> T {
+	pub fn into_inner(self) -> R {
 		self.stream
 	}
 
@@ -145,7 +145,7 @@ impl<T: Read> Reader<T> {
 		Ok(distance as usize)
 	}
 
-	fn literal(&mut self, writer: &mut Cache, state: usize, rep0: u32) -> Result<(), Error> {
+	fn literal<W: Write>(&mut self, writer: W, state: usize, rep0: u32) -> Result<(), Error> {
 		let prev = if !self.window.is_empty() {
 			self.window[1] as u32
 		}
@@ -191,7 +191,8 @@ impl<T: Read> Reader<T> {
 		self.window.push(writer, byte as u8)
 	}
 
-	fn decode(&mut self, writer: &mut Cache) -> Result<usize, Error> {
+	/// Decode one unit and return the decoded amount.
+	pub fn decode<W: Write>(&mut self, mut writer: W) -> Result<usize, Error> {
 		if let Some(size) = self.properties.uncompressed {
 			if self.decoded == size {
 				return Ok(0);
@@ -215,7 +216,7 @@ impl<T: Read> Reader<T> {
 
 			let rep   = self.rep[0];
 			let state = self.state;
-			try!(self.literal(writer, state as usize, rep));
+			try!(self.literal(writer.by_ref(), state as usize, rep));
 
 			self.state    = State::Literal(self.state).update();
 			self.decoded += 1;
@@ -240,7 +241,7 @@ impl<T: Read> Reader<T> {
 			if !try!(self.range.probabilistic(self.stream.by_ref(), &mut self.is_rep_g0[self.state as usize])) {
 				if !try!(self.range.probabilistic(self.stream.by_ref(), &mut self.is_rep0_long[((self.state << POSITION_BITS_MAX) + pos) as usize])) {
 					let byte = self.window[self.rep[0] + 1];
-					try!(self.window.push(writer, byte));
+					try!(self.window.push(writer.by_ref(), byte));
 
 					self.state    = State::ShortRepetition(self.state).update();
 					self.decoded += 1;
@@ -316,14 +317,14 @@ impl<T: Read> Reader<T> {
 			}
 		}
 
-		try!(self.window.copy(writer, self.rep[0] + 1, length));
+		try!(self.window.copy(writer.by_ref(), self.rep[0] + 1, length));
 		self.decoded += length as u64;
 
 		Ok(length)
 	}
 }
 
-impl<T: Read> Read for Reader<T> {
+impl<R: Read> Read for Reader<R> {
 	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
 		if buf.len() == 0 {
 			return Ok(0);
