@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::u64;
-
 use byteorder::{LittleEndian, ReadBytesExt};
+
 use {Error};
 use consts::MINIMUM_DICTIONARY_SIZE;
 
