@@ -58,7 +58,7 @@ impl<R: Read> Reader<R> {
 			buffer: None,
 			offset: 0,
 
-			range:  range,
+			range:  Range::empty(),
 			window: window,
 
 			literal:  literal,
@@ -105,16 +105,58 @@ impl<R: Read> Reader<R> {
 		}
 	}
 
-	/// Gets how many bytes have been decoded so far.
-	pub fn decoded(&self) -> usize {
-		self.decoded as usize
-	}
-
 	/// Unwraps this `Reader`, returning the underlying reader.
 	///
 	/// Note that any leftover data in the internal buffer is lost.
 	pub fn into_inner(self) -> R {
 		self.stream
+	}
+
+	#[doc(hidden)]
+	pub unsafe fn inner(&mut self) -> &mut R {
+		&mut self.stream
+	}
+
+	pub unsafe fn set_uncompressed(&mut self, value: Option<u64>) {
+		self.properties.uncompressed = value;
+	}
+
+	#[doc(hidden)]
+	pub unsafe fn reset(&mut self, properties: Option<Properties>) {
+		if let Some(props) = properties {
+			self.properties.lc = props.lc;
+			self.properties.lp = props.lp;
+			self.properties.pb = props.pb;
+
+			self.literal = Probabilities::new(0x300 << (props.lc + props.lp));
+		}
+		else {
+			self.decoded = 0;
+
+			self.range.reset();
+			self.window.reset();
+
+			self.position.reset();
+
+			self.length.reset();
+			self.repeat.reset();
+
+			for bt in &mut self.slot {
+				bt.reset();
+			}
+
+			self.align.reset();
+
+			self.state = 0;
+			self.rep   = [0; 4];
+
+			self.is_match.reset();
+			self.is_rep.reset();
+			self.is_rep_g0.reset();
+			self.is_rep_g1.reset();
+			self.is_rep_g2.reset();
+			self.is_rep0_long.reset();
+		}
 	}
 
 	fn distance(&mut self, length: usize) -> Result<usize, Error> {
@@ -193,7 +235,14 @@ impl<R: Read> Reader<R> {
 	}
 
 	/// Decode one unit and return the decoded amount.
+	///
+	/// Note the writer should not do partial writes, or some of the decoded data
+	/// will be lost.
 	pub fn decode<W: Write>(&mut self, mut writer: W) -> Result<usize, Error> {
+		if !self.range.is_seeded() {
+			try!(self.range.seed(self.stream.by_ref()));
+		}
+
 		if let Some(size) = self.properties.uncompressed {
 			if self.decoded == size {
 				return Ok(0);
