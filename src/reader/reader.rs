@@ -44,8 +44,7 @@ pub struct Reader<R: Read> {
 impl<R: Read> Reader<R> {
 	/// Creates a LZMA reader with the given model properties and the given
 	/// stream.
-	pub fn new(properties: Properties, mut stream: R) -> Result<Reader<R>, Error> {
-		let range  = try!(Range::from(stream.by_ref()));
+	pub fn new(stream: R, properties: Properties) -> Result<Reader<R>, Error> {
 		let window = Window::new(properties.dictionary);
 
 		let literal = Probabilities::new(0x300 << (properties.lc + properties.lp));
@@ -86,7 +85,9 @@ impl<R: Read> Reader<R> {
 	/// Creates a LZMA stream from the given stream, reading the model
 	/// properties.
 	pub fn from(mut stream: R) -> Result<Reader<R>, Error> {
-		Reader::new(try!(properties::read(stream.by_ref())), stream)
+		let properties = try!(properties::read(stream.by_ref()));
+
+		Reader::new(stream, properties)
 	}
 
 	/// Returns the model properties.
