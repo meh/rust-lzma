@@ -17,6 +17,11 @@ impl BitTree {
 		}
 	}
 
+	#[doc(hidden)]
+	pub unsafe fn reset(&mut self) {
+		self.probabilities.reset();
+	}
+
 	pub fn bits(&self) -> usize {
 		self.bits
 	}
