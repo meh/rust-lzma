@@ -18,6 +18,13 @@ impl Probabilities {
 			size:   size,
 		}
 	}
+
+	#[doc(hidden)]
+	pub unsafe fn reset(&mut self) {
+		for v in &mut self.buffer {
+			*v = PROBABILITY_INITIAL_VALUE;
+		}
+	}
 }
 
 impl Deref for Probabilities {
