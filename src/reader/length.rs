@@ -24,6 +24,21 @@ impl Length {
 		}
 	}
 
+	#[doc(hidden)]
+	pub unsafe fn reset(&mut self) {
+		self.choice = [PROBABILITY_INITIAL_VALUE; 2];
+
+		for bt in &mut self.low {
+			bt.reset();
+		}
+
+		for bt in &mut self.mid {
+			bt.reset();
+		}
+
+		self.hig.reset();
+	}
+
 	pub fn decode<T: Read>(&mut self, mut stream: T, range: &mut Range, state: usize) -> Result<usize, Error> {
 		if !try!(range.probabilistic(stream.by_ref(), &mut self.choice[0])) {
 			Ok(try!(self.low[state].decode(stream.by_ref(), range)))
