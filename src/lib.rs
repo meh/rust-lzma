@@ -9,8 +9,10 @@ mod consts;
 mod error;
 pub use error::Error;
 
-mod properties;
+/// Model property related functions.
+pub mod properties;
 pub use properties::Properties;
 
-mod reader;
+#[doc(hidden)]
+pub mod reader;
 pub use reader::{Reader, open, read};
