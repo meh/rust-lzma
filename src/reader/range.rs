@@ -4,40 +4,62 @@ use byteorder::ReadBytesExt;
 use Error;
 use consts::{MODEL_TOTAL_BITS, TOP_VALUE, MOVE_BITS};
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Range {
 	range: u32,
 	code:  u32,
+
+	seeded: bool,
 }
 
 impl Range {
+	pub fn empty() -> Range {
+		Range {
+			range: 0xffffffff,
+			code:  0,
+
+			seeded: false,
+		}
+	}
+
 	pub fn new(range: u32, code: u32) -> Range {
 		Range {
 			range: range,
 			code:  code,
-		}
-	}
 
-	pub fn from<T: Read>(mut stream: T) -> Result<Range, Error> {
-		let     range = 0xffffffff;
-		let mut code  = 0;
-
-		let control = try!(stream.read_u8());
-
-		for _ in 0 .. 4 {
-			code = (code << 8) | try!(stream.read_u8()) as u32;
-		}
-
-		if control != 0 || code == range {
-			Err(Error::Corrupted)
-		}
-		else {
-			Ok(Range::new(range, code))
+			seeded: true,
 		}
 	}
 
 	pub fn is_finished(&self) -> bool {
 		self.code == 0
+	}
+
+	pub fn is_seeded(&self) -> bool {
+		self.seeded
+	}
+
+	pub fn seed<T: Read>(&mut self, mut stream: T) -> Result<(), Error> {
+		let control = try!(stream.read_u8());
+
+		for _ in 0 .. 4 {
+			self.code = (self.code << 8) | try!(stream.read_u8()) as u32;
+		}
+
+		if control != 0 || self.code == self.range {
+			return Err(Error::Corrupted)
+		}
+
+		self.seeded = true;
+
+		Ok(())
+	}
+
+	#[doc(hidden)]
+	pub unsafe fn reset(&mut self) {
+		self.range  = 0xffffffff;
+		self.code   = 0;
+		self.seeded = false;
 	}
 
 	fn normalize<T: Read>(&mut self, mut stream: T) -> Result<(), Error> {
