@@ -48,7 +48,13 @@ impl Window {
 		self.position == 0 && !self.is_full()
 	}
 
-	pub fn push<T: Write>(&mut self, mut stream: T, byte: u8) -> Result<(), Error> {
+	pub unsafe fn reset(&mut self) {
+		self.position = 0;
+		self.total    = 0;
+		self.full     = false;
+	}
+
+	pub fn push<W: Write>(&mut self, mut stream: W, byte: u8) -> Result<(), Error> {
 		try!(stream.write_u8(byte));
 
 		self.buffer.insert(self.position as usize, byte);
@@ -64,7 +70,7 @@ impl Window {
 		Ok(())
 	}
 
-	pub fn copy<T: Write>(&mut self, mut stream: T, distance: u32, length: usize) -> Result<(), Error> {
+	pub fn copy<W: Write>(&mut self, mut stream: W, distance: u32, length: usize) -> Result<(), Error> {
 		for _ in 0 .. length {
 			let b = self[distance];
 			try!(self.push(stream.by_ref(), b));
