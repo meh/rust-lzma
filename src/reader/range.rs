@@ -4,6 +4,7 @@ use byteorder::ReadBytesExt;
 use Error;
 use consts::{MODEL_TOTAL_BITS, TOP_VALUE, MOVE_BITS};
 
+/// A range decoder.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Range {
 	range: u32,
@@ -13,6 +14,7 @@ pub struct Range {
 }
 
 impl Range {
+	/// Creates an empty unseeded range.
 	pub fn empty() -> Range {
 		Range {
 			range: 0xffffffff,
@@ -22,6 +24,7 @@ impl Range {
 		}
 	}
 
+	/// Creates a range seeded with the given values.
 	pub fn new(range: u32, code: u32) -> Range {
 		Range {
 			range: range,
@@ -31,14 +34,17 @@ impl Range {
 		}
 	}
 
+	/// Checks if the decoder is finished.
 	pub fn is_finished(&self) -> bool {
 		self.code == 0
 	}
 
+	/// Checks if the range is seeded.
 	pub fn is_seeded(&self) -> bool {
 		self.seeded
 	}
 
+	/// Seeds the decoder from the given stream.
 	pub fn seed<T: Read>(&mut self, mut stream: T) -> Result<(), Error> {
 		let control = try!(stream.read_u8());
 
@@ -55,7 +61,9 @@ impl Range {
 		Ok(())
 	}
 
-	#[doc(hidden)]
+	/// Resets the range, requiring a new seed.
+	///
+	/// Note that resetting might corrupt the decoding.
 	pub unsafe fn reset(&mut self) {
 		self.range  = 0xffffffff;
 		self.code   = 0;
@@ -71,6 +79,7 @@ impl Range {
 		Ok(())
 	}
 
+	/// Extracts the amount of bits directly.
 	pub fn direct<T: Read>(&mut self, mut stream: T, bits: usize) -> Result<usize, Error> {
 		let mut result = 0usize;
 
@@ -94,6 +103,7 @@ impl Range {
 		Ok(result)
 	}
 
+	/// Extracts a bit using the probabilistic model.
 	pub fn probabilistic<T: Read>(&mut self, stream: T, prob: &mut u16) -> Result<bool, Error> {
 		let mut v     = *prob;
 		let     bound = (self.range >> MODEL_TOTAL_BITS) * v as u32;
