@@ -1,11 +1,20 @@
+/// The decoder state.
 pub enum State {
+	///
 	Literal(u32),
+
+	///
 	Match(u32),
+
+	///
 	Repetition(u32),
+
+	///
 	ShortRepetition(u32),
 }
 
 impl State {
+	/// Update the state.
 	pub fn update(self) -> u32 {
 		match self {
 			State::Literal(value) if value < 4  => 0,
