@@ -5,6 +5,7 @@ use Error;
 use consts::PROBABILITY_INITIAL_VALUE;
 use super::Range;
 
+/// Table of probabilities.
 #[derive(Clone, Debug)]
 pub struct Probabilities {
 	buffer: Vec<u16>,
@@ -12,6 +13,7 @@ pub struct Probabilities {
 }
 
 impl Probabilities {
+	/// Creates a new table of the given size.
 	pub fn new(size: usize) -> Self {
 		Probabilities {
 			buffer: vec![PROBABILITY_INITIAL_VALUE; size],
@@ -19,7 +21,9 @@ impl Probabilities {
 		}
 	}
 
-	#[doc(hidden)]
+	/// Resets the table to the initial state.
+	///
+	/// Note that resetting might corrupt decoding.
 	pub unsafe fn reset(&mut self) {
 		for v in &mut self.buffer {
 			*v = PROBABILITY_INITIAL_VALUE;
@@ -41,6 +45,7 @@ impl DerefMut for Probabilities {
 	}
 }
 
+#[doc(hidden)]
 pub fn reverse<T: Read>(mut stream: T, probs: &mut [u16], bits: usize, range: &mut Range) -> Result<usize, Error> {
 	let mut m        = 1;
 	let mut distance = 0;
