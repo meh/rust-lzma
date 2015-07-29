@@ -4,6 +4,7 @@ use {Error};
 use consts::{PROBABILITY_INITIAL_VALUE, POSITION_BITS_MAX};
 use super::{BitTree, Range};
 
+/// A length decoder.
 #[derive(Clone, Debug)]
 pub struct Length {
 	choice: [u16; 2],
@@ -14,6 +15,7 @@ pub struct Length {
 }
 
 impl Length {
+	/// Creates a new length decoder.
 	pub fn new() -> Self {
 		Length {
 			choice: [PROBABILITY_INITIAL_VALUE; 2],
@@ -24,7 +26,9 @@ impl Length {
 		}
 	}
 
-	#[doc(hidden)]
+	/// Resets the decoder.
+	///
+	/// Note that resetting might corrupt the decoding.
 	pub unsafe fn reset(&mut self) {
 		self.choice = [PROBABILITY_INITIAL_VALUE; 2];
 
@@ -39,6 +43,7 @@ impl Length {
 		self.hig.reset();
 	}
 
+	/// Decode a length.
 	pub fn decode<T: Read>(&mut self, mut stream: T, range: &mut Range, state: usize) -> Result<usize, Error> {
 		if !try!(range.probabilistic(stream.by_ref(), &mut self.choice[0])) {
 			Ok(try!(self.low[state].decode(stream.by_ref(), range)))
