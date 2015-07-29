@@ -1,5 +1,9 @@
 use std::io::{self, Write, Cursor};
 
+/// A wrapper around a `Cursor`.
+///
+/// It will cache the contents that go over the size of the cursor so they can
+/// be extracted later and saved.
 #[derive(Debug)]
 pub struct Cache<'a> {
 	cursor: Cursor<&'a mut [u8]>,
@@ -7,6 +11,7 @@ pub struct Cache<'a> {
 }
 
 impl<'a> Cache<'a> {
+	/// Creates a new cache.
 	pub fn new(cursor: Cursor<&mut [u8]>) -> Cache {
 		Cache {
 			cursor: cursor,
@@ -14,6 +19,7 @@ impl<'a> Cache<'a> {
 		}
 	}
 
+	/// Returns the underlying buffer.
 	pub fn into_inner(self) -> Option<Vec<u8>> {
 		self.buffer
 	}
