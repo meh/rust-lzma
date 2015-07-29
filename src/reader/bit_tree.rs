@@ -3,6 +3,7 @@ use std::io::Read;
 use {Error};
 use super::{Range, Probabilities};
 
+/// A bit tree decoder.
 #[derive(Clone, Debug)]
 pub struct BitTree {
 	probabilities: Probabilities,
@@ -10,6 +11,7 @@ pub struct BitTree {
 }
 
 impl BitTree {
+	/// Creates a new bit tree of the given size.
 	pub fn new(bits: usize) -> BitTree {
 		BitTree {
 			probabilities: Probabilities::new(1 << bits),
@@ -17,15 +19,19 @@ impl BitTree {
 		}
 	}
 
-	#[doc(hidden)]
+	/// Resets the bit tree decoder.
+	///
+	/// Note thet resetting might corrupt the decoding.
 	pub unsafe fn reset(&mut self) {
 		self.probabilities.reset();
 	}
 
+	/// Gets the number of bits in the tree.
 	pub fn bits(&self) -> usize {
 		self.bits
 	}
 
+	/// Decodes bits.
 	pub fn decode<T: Read>(&mut self, mut stream: T, range: &mut Range) -> Result<usize, Error> {
 		let mut m = 1usize;
 
@@ -42,6 +48,7 @@ impl BitTree {
 		Ok(m - (1 << self.bits()))
 	}
 
+	/// Decodes bits in reverse order.
 	pub fn reverse<T: Read>(&mut self, stream: T, range: &mut Range) -> Result<usize, Error> {
 		super::probabilities::reverse(stream, &mut self.probabilities, self.bits, range)
 	}
