@@ -112,16 +112,23 @@ impl<R: Read> Reader<R> {
 		self.stream
 	}
 
-	#[doc(hidden)]
+	/// Returns the inner stream mutably.
+	///
+	/// Note that reading bytes from the raw stream might corrupt the decoding.
 	pub unsafe fn inner(&mut self) -> &mut R {
 		&mut self.stream
 	}
 
+	/// Sets the uncompressed size.
+	///
+	/// Note that changing the uncompressed size might corrupt the decoding.
 	pub unsafe fn set_uncompressed(&mut self, value: Option<u64>) {
 		self.properties.uncompressed = value;
 	}
 
-	#[doc(hidden)]
+	/// Resets the decoder.
+	///
+	/// Note that resetting might corrupt the decoding.
 	pub unsafe fn reset(&mut self, properties: Option<Properties>) {
 		if let Some(props) = properties {
 			self.properties.lc = props.lc;
