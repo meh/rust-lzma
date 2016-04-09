@@ -307,7 +307,7 @@ impl<R: Read> Reader<R> {
 				}
 			}
 			else {
-				let mut distance;
+				let distance;
 				
 				if !try!(self.range.probabilistic(self.stream.by_ref(), &mut self.is_rep_g1[self.state as usize])) {
 					distance = self.rep[1];
